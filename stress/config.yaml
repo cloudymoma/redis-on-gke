@@ -1,0 +1,32 @@
+# redis-stress configuration. Every field is optional; these are the defaults
+# tuned for the cluster topology in this repo. See stress/README.md.
+target:
+  mode: cluster                  # cluster | standalone | sentinel
+  addrs: ["redis-cluster-leader.redis.svc:6379"]
+  password_env: REDIS_PASSWORD   # injected from the redis-secret Secret by k8s/job.yaml
+  tls: false
+  dial_timeout: 5s
+  read_timeout: 2s
+
+workload:
+  duration: 2m
+  warmup: 10s
+  concurrency: 100
+  pipeline: 1
+  read_ratio: 0.8
+  key_space: 1000000
+  key_prefix: "stress:"
+  key_distribution: uniform      # uniform | zipfian (set zipf_s > 1)
+  zipf_s: 1.1
+  value_size: 256
+  ttl: 0
+  preload: true
+  rate_limit: 0                  # ops/sec, 0 = unlimited
+
+metrics:
+  interval: 1s
+  server_interval: 5s
+  percentiles: [50, 90, 95, 99, 99.9]
+
+report:
+  title: "redis-cluster 3 shards, 100 clients, 80/20 GET/SET"

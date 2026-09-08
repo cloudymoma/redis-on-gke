@@ -1,0 +1,59 @@
+# Rendered by stress/run.sh; __PLACEHOLDERS__ are substituted with sed.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: __JOB_NAME__
+  namespace: __NAMESPACE__
+  labels:
+    app: redis-stress
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: __DEADLINE__
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: redis-stress
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: redis-stress
+          image: __IMAGE__
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              /redis-stress -config /etc/redis-stress/config.yaml -out /out
+              rc=$?
+              echo "EXIT_CODE=$rc"
+              echo REPORT_READY
+              sleep __HOLD__
+              exit $rc
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: __SECRET_NAME__
+                  key: password
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/redis-stress
+              readOnly: true
+            - name: out
+              mountPath: /out
+      volumes:
+        - name: config
+          configMap:
+            name: __CONFIGMAP__
+        - name: out
+          emptyDir: {}

@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · redis-stress</title>
+<style>
+:root{--surface:#fcfcfb;--page:#f9f9f7;--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;--grid:#e1e0d9;--axis:#c3c2b7;--ring:rgba(11,11,11,.10)}
+@media (prefers-color-scheme:dark){:root{--surface:#1a1a19;--page:#0d0d0d;--ink:#fff;--ink2:#c3c2b7;--muted:#898781;--grid:#2c2c2a;--axis:#383835;--ring:rgba(255,255,255,.10)}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-variant-numeric:tabular-nums}
+main{max-width:1200px;margin:0 auto;padding:24px 20px 48px}
+h1{font-size:22px;font-weight:600;margin:0 0 4px}
+h2{font-size:15px;font-weight:600;margin:28px 0 10px;color:var(--ink)}
+.sub{color:var(--ink2);margin:0 0 20px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tile{background:var(--surface);border:1px solid var(--ring);border-radius:8px;padding:12px 14px}
+.tile .k{font-size:12px;color:var(--muted);margin-bottom:4px}
+.tile .v{font-size:22px;font-weight:600}
+.tile .u{font-size:12px;color:var(--ink2);margin-left:3px;font-weight:400}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(460px,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--ring);border-radius:8px;padding:14px 16px}
+.card h3{margin:0 0 8px;font-size:13px;font-weight:600;color:var(--ink2)}
+.card .note{font-size:12px;color:var(--muted);margin:6px 0 0}
+.plot{position:relative;height:260px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--grid)}
+th{color:var(--muted);font-weight:500}
+td.n,th.n{text-align:right}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+</style>
+</head>
+<body>
+<main>
+<h1>{{.Title}}</h1>
+<p class="sub" id="subtitle"></p>
+
+<section class="tiles" id="tiles"></section>
+
+<h2>Client side</h2>
+<div class="grid2">
+  <div class="card"><h3>Throughput (ops/s)</h3><div class="plot"><canvas id="throughput"></canvas></div></div>
+  <div class="card"><h3>Latency percentiles, all commands (ms)</h3><div class="plot"><canvas id="latency"></canvas></div><p class="note" id="pipelineNote"></p></div>
+  <div class="card"><h3>Latency distribution (share of commands)</h3><div class="plot"><canvas id="histogram"></canvas></div></div>
+  <div class="card"><h3>Errors per interval</h3><div class="plot"><canvas id="errors"></canvas></div><div id="errorTable"></div></div>
+</div>
+
+<h2>Server side</h2>
+<div class="grid2">
+  <div class="card"><h3>Ops/s per node (INFO)</h3><div class="plot"><canvas id="nodeOps"></canvas></div></div>
+  <div class="card"><h3>Keys per node (DBSIZE, last sample)</h3><div class="plot"><canvas id="nodeKeys"></canvas></div></div>
+  <div class="card"><h3>Used memory per node (MiB)</h3><div class="plot"><canvas id="nodeMem"></canvas></div></div>
+  <div class="card"><h3>Connected clients per node</h3><div class="plot"><canvas id="nodeClients"></canvas></div></div>
+  <div class="card"><h3>Keyspace hit ratio per node</h3><div class="plot"><canvas id="hitRatio"></canvas></div></div>
+  <div class="card"><h3>Nodes</h3><div id="nodeTable"></div></div>
+</div>
+
+<h2>Configuration</h2>
+<div class="card"><div id="configTable"></div></div>
+</main>
+
+<script id="data" type="application/json">{{.Data}}</script>
+<script>{{.ChartJS}}</script>
+<script>
+(function () {
+  const R = JSON.parse(document.getElementById('data').textContent);
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  const P = dark
+    ? ['#3987e5','#d95926','#199e70','#c98500','#d55181','#008300','#9085e9','#e66767']
+    : ['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#4a3aa7','#e34948'];
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  Chart.defaults.color = css('--muted');
+  Chart.defaults.borderColor = css('--grid');
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  Chart.defaults.elements.line.borderWidth = 2;
+  Chart.defaults.elements.line.tension = 0;
+  Chart.defaults.elements.point.radius = 0;
+  Chart.defaults.elements.point.hoverRadius = 4;
+  Chart.defaults.plugins.legend.labels.boxWidth = 10;
+  Chart.defaults.plugins.legend.labels.boxHeight = 10;
+  Chart.defaults.plugins.tooltip.mode = 'index';
+  Chart.defaults.plugins.tooltip.intersect = false;
+  Chart.defaults.interaction = { mode: 'index', intersect: false };
+
+  const fmt = (n, d = 0) => n == null ? '–' : Number(n).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
+  const ms = us => us / 1000;
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const elapsed = t => (new Date(t) - new Date(R.meta.start)) / 1000;
+
+  // Subtitle + tiles
+  const S = R.summary, M = R.meta, W = R.config.workload;
+  document.getElementById('subtitle').textContent =
+    `${R.config.target.mode} · ${R.config.target.addrs.join(', ')} · ${new Date(M.start).toLocaleString()} · ` +
+    `measured ${fmt(M.duration_s)}s after ${W.warmup / 1e9}s warmup · exit: ${M.exit_reason} · redis-stress ${M.version}`;
+  const tiles = [
+    ['Total ops', fmt(S.total_ops), ''],
+    ['Mean throughput', fmt(S.mean_ops_per_sec), 'ops/s'],
+    ['p50', fmt(ms(S.p50_us), 2), 'ms'],
+    ['p99', fmt(ms(S.p99_us), 2), 'ms'],
+    ['p99.9', fmt(ms(S.p999_us), 2), 'ms'],
+    ['Max', fmt(ms(S.max_us), 1), 'ms'],
+    ['Errors', `${fmt(S.total_errors)} <span class="u">(${fmt(S.error_rate * 100, 3)}%)</span>`, ''],
+    ['Hit ratio', S.hit_ratio < 0 ? 'n/a' : fmt(S.hit_ratio * 100, 1), S.hit_ratio < 0 ? '' : '%'],
+    ['Preload', fmt(M.preload_s, 1), 's'],
+  ];
+  document.getElementById('tiles').innerHTML = tiles.map(([k, v, u]) =>
+    `<div class="tile"><div class="k">${k}</div><div class="v">${v}<span class="u">${u}</span></div></div>`).join('');
+  if (W.pipeline > 1) {
+    document.getElementById('pipelineNote').textContent =
+      `pipeline=${W.pipeline}: each latency is one round trip of ${W.pipeline} commands.`;
+  }
+
+  const base = (extra) => ({
+    responsive: true, maintainAspectRatio: false, animation: false,
+    plugins: { legend: { display: true, position: 'bottom' } },
+    scales: {
+      x: { title: { display: true, text: 'seconds' }, grid: { display: false }, ticks: { maxTicksLimit: 10 } },
+      y: { beginAtZero: true, grid: { color: css('--grid') }, border: { color: css('--axis') } },
+    },
+    ...extra,
+  });
+  const line = (id, labels, series, opts) => new Chart(document.getElementById(id), {
+    type: 'line',
+    data: { labels, datasets: series.map((s, i) => ({ label: s.label, data: s.data, borderColor: P[i % P.length], backgroundColor: P[i % P.length], spanGaps: true })) },
+    options: base(opts || {}),
+  });
+
+  // Client charts
+  const snaps = R.client.snapshots || [];
+  const subSecond = snaps.some(s => s.seconds > 0 && s.seconds < 1);
+  const xs = snaps.map(s => Math.max(0, s.elapsed_s).toFixed(subSecond ? 1 : 0));
+  const rate = (s, op) => s.seconds > 0 ? (s.ops[op] || 0) / s.seconds : 0;
+  line('throughput', xs, [
+    { label: 'GET', data: snaps.map(s => rate(s, 'GET')) },
+    { label: 'SET', data: snaps.map(s => rate(s, 'SET')) },
+    { label: 'total', data: snaps.map(s => rate(s, 'GET') + rate(s, 'SET')) },
+  ]);
+  const pcts = (R.config.metrics.percentiles || []).map(p => 'p' + p);
+  line('latency', xs, pcts.map(p => ({ label: p, data: snaps.map(s => ms(((s.latency || {}).ALL || { values: {} }).values[p] || 0)) })));
+
+  const hist = R.client.histogram || [];
+  const histTotal = hist.reduce((a, b) => a + b.count, 0) || 1;
+  const bucketLabel = (b, i) => b.upper_us > 1e6 ? '>1s' : (i === 0 ? '<' : '≤') + (b.upper_us >= 1000 ? (b.upper_us / 1000) + 'ms' : b.upper_us + 'µs');
+  new Chart(document.getElementById('histogram'), {
+    type: 'bar',
+    data: { labels: hist.map(bucketLabel), datasets: [{ label: 'share', data: hist.map(b => b.count / histTotal * 100), backgroundColor: P[0], borderRadius: 4, maxBarThickness: 28 }] },
+    options: base({ plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${fmt(c.parsed.y, 2)}% of commands` } } },
+      scales: { x: { grid: { display: false } }, y: { beginAtZero: true, title: { display: true, text: '% of commands' } } } }),
+  });
+
+  const errClasses = ['timeout', 'connection', 'cluster', 'oom', 'other'].filter(k => snaps.some(s => (s.errors || {})[k]));
+  new Chart(document.getElementById('errors'), {
+    type: 'bar',
+    data: { labels: xs, datasets: errClasses.map((k, i) => ({ label: k, data: snaps.map(s => (s.errors || {})[k] || 0), backgroundColor: P[(i + 7) % P.length], borderRadius: 4, maxBarThickness: 18 })) },
+    options: base({ plugins: { legend: { display: errClasses.length > 0, position: 'bottom' } }, scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true } } }),
+  });
+  const te = R.client.total_errors || {};
+  document.getElementById('errorTable').innerHTML = Object.keys(te).length
+    ? '<table><tr><th>class</th><th class="n">count</th></tr>' + Object.entries(te).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="n">${fmt(v)}</td></tr>`).join('') + '</table>'
+    : '<p class="note">No errors recorded.</p>';
+
+  // Server charts: one dataset per node, x = seconds since measurement start
+  const nodes = R.server || [];
+  const nodeLine = (id, pick, opts) => new Chart(document.getElementById(id), {
+    type: 'line',
+    data: { datasets: nodes.map((n, i) => ({ label: n.addr, borderColor: P[i % P.length], backgroundColor: P[i % P.length],
+      data: n.samples.filter(s => !s.err).map(s => ({ x: elapsed(s.at), y: pick(s.fields) })) })) },
+    options: base({ scales: { x: { type: 'linear', title: { display: true, text: 'seconds' }, grid: { display: false } }, y: { beginAtZero: true } }, ...(opts || {}) }),
+  });
+  nodeLine('nodeOps', f => f.ops_per_sec);
+  nodeLine('nodeMem', f => f.used_memory / 1048576);
+  nodeLine('nodeClients', f => f.connected_clients);
+  new Chart(document.getElementById('hitRatio'), {
+    type: 'line',
+    data: { datasets: nodes.map((n, i) => {
+      const ok = n.samples.filter(s => !s.err), pts = [];
+      for (let j = 1; j < ok.length; j++) {
+        const dh = ok[j].fields.keyspace_hits - ok[j - 1].fields.keyspace_hits, dm = ok[j].fields.keyspace_misses - ok[j - 1].fields.keyspace_misses;
+        if (dh + dm > 0) pts.push({ x: elapsed(ok[j].at), y: dh / (dh + dm) * 100 });
+      }
+      return { label: n.addr, data: pts, borderColor: P[i % P.length], backgroundColor: P[i % P.length] };
+    }) },
+    options: base({ scales: { x: { type: 'linear', title: { display: true, text: 'seconds' }, grid: { display: false } }, y: { min: 0, max: 100, title: { display: true, text: '%' } } } }),
+  });
+  new Chart(document.getElementById('nodeKeys'), {
+    type: 'bar',
+    data: { labels: nodes.map(n => n.addr), datasets: [{ label: 'keys', data: nodes.map(n => { const ok = n.samples.filter(s => !s.err); return ok.length ? ok[ok.length - 1].fields.keys : 0; }), backgroundColor: P[2], borderRadius: 4, maxBarThickness: 40 }] },
+    options: base({ plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { beginAtZero: true } } }),
+  });
+  document.getElementById('nodeTable').innerHTML = nodes.length
+    ? '<table><tr><th>node</th><th>role</th><th class="n">keys</th><th class="n">mem MiB</th><th class="n">clients</th><th class="n">samples</th></tr>' +
+      nodes.map(n => { const ok = n.samples.filter(s => !s.err), l = ok.length ? ok[ok.length - 1].fields : {};
+        return `<tr><td><code>${esc(n.addr)}</code></td><td>${esc(n.role || '')}</td><td class="n">${fmt(l.keys)}</td><td class="n">${fmt((l.used_memory || 0) / 1048576, 1)}</td><td class="n">${fmt(l.connected_clients)}</td><td class="n">${n.samples.length}</td></tr>`; }).join('') + '</table>'
+    : '<p class="note">No server samples (INFO unavailable).</p>';
+
+  // Config echo
+  const dur = ns => typeof ns === 'number' ? (ns / 1e9) + 's' : ns;
+  const rows = [];
+  for (const [sec, obj] of Object.entries(R.config)) for (const [k, v] of Object.entries(obj))
+    rows.push(`<tr><td><code>${sec}.${k}</code></td><td>${esc(/timeout|duration|warmup|interval/.test(k) ? dur(v) : JSON.stringify(v))}</td></tr>`);
+  document.getElementById('configTable').innerHTML = '<table>' + rows.join('') + '</table>';
+})();
+</script>
+</body>
+</html>

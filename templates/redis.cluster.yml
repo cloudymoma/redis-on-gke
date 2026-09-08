@@ -1,0 +1,93 @@
+# Redis Cluster mode (sharded): clusterSize leaders + clusterSize followers.
+# Scale shards with:  ./bin/redis.sh scale <n>   (the operator reshards slots)
+---
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisCluster
+metadata:
+  name: redis-cluster
+spec:
+  clusterSize: 3            # number of shards (leaders); followers match this count
+  clusterVersion: v7
+  persistenceEnabled: true
+  podSecurityContext:
+    runAsUser: 1000
+    fsGroup: 1000
+  kubernetesConfig:
+    image: quay.io/opstree/redis:v7.0.15
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+    redisSecret:
+      name: redis-secret
+      key: password
+  redisExporter:
+    enabled: true
+    image: quay.io/opstree/redis-exporter:v1.44.0
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+  redisLeader:
+    pdb:
+      enabled: true
+      maxUnavailable: 1
+    # Spread leaders across zones/nodes (soft, so a small cluster still schedules)
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: redis-cluster-leader
+              topologyKey: topology.kubernetes.io/zone
+          - weight: 90
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: redis-cluster-leader
+              topologyKey: kubernetes.io/hostname
+  redisFollower:
+    pdb:
+      enabled: true
+      maxUnavailable: 1
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: redis-cluster-follower
+              topologyKey: topology.kubernetes.io/zone
+          - weight: 90
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: redis-cluster-follower
+              topologyKey: kubernetes.io/hostname
+  storage:
+    volumeClaimTemplate:
+      spec:
+        storageClassName: hyperdisk-balanced  # Hyperdisk Balanced for C4
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+    nodeConfVolume: true
+    nodeConfVolumeClaimTemplate:
+      spec:
+        storageClassName: hyperdisk-balanced  # cluster node.conf
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 4Gi   # Hyperdisk Balanced minimum volume size

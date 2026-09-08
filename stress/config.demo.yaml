@@ -1,0 +1,27 @@
+# redis-stress configuration for the demo topology (make demo-all):
+# one standalone Redis pod on a single e2-standard-4 node. Kept light so the
+# load generator and the server fit on the same node. See stress/README.md.
+target:
+  mode: standalone
+  addrs: ["redis-standalone.redis.svc:6379"]
+  password_env: REDIS_PASSWORD
+  dial_timeout: 5s
+  read_timeout: 2s
+
+workload:
+  duration: 60s
+  warmup: 5s
+  concurrency: 20
+  pipeline: 1
+  read_ratio: 0.8
+  key_space: 100000
+  key_prefix: "stress:"
+  value_size: 256
+  preload: true
+
+metrics:
+  interval: 1s
+  server_interval: 5s
+
+report:
+  title: "demo standalone, 20 clients, 80/20 GET/SET"

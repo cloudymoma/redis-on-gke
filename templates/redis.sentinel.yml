@@ -1,0 +1,93 @@
+# HA without sharding: 3-node replication (1 master + 2 replicas)
+# monitored by a 3-node Sentinel quorum. Use when the dataset fits on
+# one node and you want automatic failover without cluster-mode
+# client complexity.
+---
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisReplication
+metadata:
+  name: redis-replication
+spec:
+  clusterSize: 3
+  podSecurityContext:
+    runAsUser: 1000
+    fsGroup: 1000
+  kubernetesConfig:
+    image: quay.io/opstree/redis:v7.0.15
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+    redisSecret:
+      name: redis-secret
+      key: password
+  redisExporter:
+    enabled: true
+    image: quay.io/opstree/redis-exporter:v1.44.0
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+  pdb:
+    enabled: true
+    maxUnavailable: 1
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app: redis-replication
+            topologyKey: topology.kubernetes.io/zone
+        - weight: 90
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app: redis-replication
+            topologyKey: kubernetes.io/hostname
+  storage:
+    volumeClaimTemplate:
+      spec:
+        storageClassName: hyperdisk-balanced  # Hyperdisk Balanced for C4
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisSentinel
+metadata:
+  name: redis-sentinel
+spec:
+  clusterSize: 3
+  podSecurityContext:
+    runAsUser: 1000
+    fsGroup: 1000
+  pdb:
+    enabled: true
+    minAvailable: 2   # keep sentinel quorum during voluntary disruptions
+  redisSentinelConfig:
+    redisReplicationName: redis-replication
+    redisReplicationPassword:
+      secretKeyRef:
+        name: redis-secret
+        key: password
+  kubernetesConfig:
+    image: quay.io/opstree/redis-sentinel:v7.0.15
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi

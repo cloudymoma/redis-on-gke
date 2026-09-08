@@ -1,0 +1,68 @@
+# Environment and Secrets
+.env
+.env.*
+!.env.example
+*.env
+*.secret
+*.key
+*.pem
+*.crt
+*.p12
+*.pkcs12
+credentials*.json
+service-account*.json
+gcp-key*.json
+
+# Redis Backups & Temporary Data
+*.rdb
+*.aof
+*.local.yml
+
+# Go Binaries and Build Artifacts
+bin/redis-stress
+stress/redis-stress
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.out
+profile.pprof
+*.pprof
+
+# Stress Test Outputs & Image Markers
+stress/.image
+stress/reports/*
+!stress/reports/.gitkeep
+
+# Kubernetes, Helm, and Cloud Artifacts
+kubeconfig
+kubeconfig.*
+*.kubeconfig
+*.tgz
+*.log
+
+# Editors and IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Scratch and Temporary Directories
+scratch/
+tmp/
+stress/local.yaml

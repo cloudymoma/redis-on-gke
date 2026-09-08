@@ -1,0 +1,77 @@
+# Nightly per-shard RDB backup to GCS for the cluster topology.
+# Placeholders (__X__) are rendered by bin/backup.sh deploy, which
+# bin/redis.sh scale re-runs automatically so the shard count stays current.
+# The init container streams an RDB from every leader via `redis-cli --rdb`
+# (a full sync, no PVC access needed); the main container uploads to GCS
+# using Workload Identity.
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: redis-backup
+  namespace: __NAMESPACE__
+spec:
+  schedule: "0 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3600
+      template:
+        spec:
+          serviceAccountName: __KSA_NAME__
+          restartPolicy: Never
+          initContainers:
+            - name: dump
+              image: redis:7.2-alpine
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+              env:
+                - name: REDISCLI_AUTH
+                  valueFrom:
+                    secretKeyRef:
+                      name: __SECRET_NAME__
+                      key: password
+                - name: LEADERS
+                  value: "__CLUSTER_SIZE__"
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  i=0
+                  while [ "$i" -lt "$LEADERS" ]; do
+                    host="redis-cluster-leader-$i.redis-cluster-leader-headless.__NAMESPACE__.svc"
+                    echo "Dumping shard $i from $host"
+                    redis-cli -h "$host" --rdb "/backup/shard-$i.rdb"
+                    i=$((i + 1))
+                  done
+                  ls -lh /backup
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+          containers:
+            - name: upload
+              image: gcr.io/google.com/cloudsdktool/google-cloud-cli:slim
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+              command: ["/bin/sh", "-c"]
+              args:
+                - gcloud storage cp /backup/*.rdb "gs://__GCS_BUCKET__/$(date +%Y-%m-%d_%H%M)/"
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+          volumes:
+            - name: backup
+              emptyDir: {}
