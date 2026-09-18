@@ -8,7 +8,7 @@ ZONE="${ZONE:-${REGION}-a}"
 
 # Deployment profile (export PROFILE=demo for every command that targets the
 # demo cluster: create, status, scale, clean):
-#   prod (default) : regional (3 zones), c4-standard-4, hyperdisk-balanced (HA)
+#   prod (default) : regional (3 zones x 2 nodes), c4-standard-4, hyperdisk-balanced (HA)
 #   demo           : single-zone, e2-standard-4, pd-balanced (low cost, functional testing)
 PROFILE="${PROFILE:-prod}"
 
@@ -33,7 +33,7 @@ else
     LOCATION_FLAG="--region=${REGION}"
     MACHINE_TYPE="${MACHINE_TYPE:-c4-standard-4}"
     DISK_TYPE="${DISK_TYPE:-hyperdisk-balanced}"
-    NUM_NODES="${NUM_NODES:-1}" # per zone (regional = 3 zones, 3 nodes total)
+    NUM_NODES="${NUM_NODES:-2}" # per zone (regional = 3 zones, 6 nodes total): one node per cluster pod, see redis.cluster.yml anti-affinity
 fi
 
 # GKE release channel. The dynamic StorageClass (templates/storageclass.hyperdisk.yml)
