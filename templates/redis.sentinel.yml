@@ -76,6 +76,22 @@ spec:
   pdb:
     enabled: true
     minAvailable: 2   # keep sentinel quorum during voluntary disruptions
+  # One sentinel per node (hard) so a single node loss cannot take the quorum;
+  # spread across zones (soft). Sentinels are tiny, so this fits 3 prod nodes.
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app: redis-sentinel
+          topologyKey: kubernetes.io/hostname
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app: redis-sentinel
+            topologyKey: topology.kubernetes.io/zone
   redisSentinelConfig:
     redisReplicationName: redis-replication
     redisReplicationPassword:
