@@ -10,6 +10,15 @@ spec:
   clusterSize: 3            # number of shards (leaders); followers match this count
   clusterVersion: v7
   persistenceEnabled: true
+  redisConfig:
+    # maxmemory = 60% of the container memory limit, leaving headroom for the
+    # fork/copy-on-write spike during BGSAVE. Applied by the operator config
+    # init container: requires the GenerateConfigInInitContainer feature gate
+    # that bin/operator.sh enables. Eviction policy is left at the Redis
+    # default (noeviction): writes fail with OOM at the limit instead of the
+    # container being OOMKilled. Set the top-level key: the operator ignores
+    # per-role redisLeader/redisFollower copies of it.
+    maxMemoryPercentOfLimit: 60
   podSecurityContext:
     runAsUser: 1000
     fsGroup: 1000
