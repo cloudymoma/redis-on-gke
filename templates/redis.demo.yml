@@ -40,4 +40,4 @@ spec:
         accessModes: ["ReadWriteOnce"]
         resources:
           requests:
-            storage: 5Gi
+            storage: 10Gi   # pd-balanced minimum (demo profile lands on E2 / pd-balanced)
