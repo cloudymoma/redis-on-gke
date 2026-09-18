@@ -41,9 +41,20 @@ spec:
     pdb:
       enabled: true
       maxUnavailable: 1
-    # Spread leaders across zones/nodes (soft, so a small cluster still schedules)
     affinity:
       podAntiAffinity:
+        # Hard: no two cluster pods of either role on one node, so a leader
+        # never shares a node with its own follower (follower-i replicates
+        # leader-i) and a single drain cannot take a whole shard. Needs one
+        # node per pod: 2 x clusterSize (bin/config.sh NUM_NODES=2 per zone).
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+                - key: app
+                  operator: In
+                  values: ["redis-cluster-leader", "redis-cluster-follower"]
+            topologyKey: kubernetes.io/hostname
+        # Soft: spread leaders across zones.
         preferredDuringSchedulingIgnoredDuringExecution:
           - weight: 100
             podAffinityTerm:
@@ -51,18 +62,24 @@ spec:
                 matchLabels:
                   app: redis-cluster-leader
               topologyKey: topology.kubernetes.io/zone
-          - weight: 90
-            podAffinityTerm:
-              labelSelector:
-                matchLabels:
-                  app: redis-cluster-leader
-              topologyKey: kubernetes.io/hostname
   redisFollower:
     pdb:
       enabled: true
       maxUnavailable: 1
     affinity:
       podAntiAffinity:
+        # Hard: no two cluster pods of either role on one node, so a leader
+        # never shares a node with its own follower (follower-i replicates
+        # leader-i) and a single drain cannot take a whole shard. Needs one
+        # node per pod: 2 x clusterSize (bin/config.sh NUM_NODES=2 per zone).
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+                - key: app
+                  operator: In
+                  values: ["redis-cluster-leader", "redis-cluster-follower"]
+            topologyKey: kubernetes.io/hostname
+        # Soft: spread followers across zones.
         preferredDuringSchedulingIgnoredDuringExecution:
           - weight: 100
             podAffinityTerm:
@@ -70,12 +87,6 @@ spec:
                 matchLabels:
                   app: redis-cluster-follower
               topologyKey: topology.kubernetes.io/zone
-          - weight: 90
-            podAffinityTerm:
-              labelSelector:
-                matchLabels:
-                  app: redis-cluster-follower
-              topologyKey: kubernetes.io/hostname
   storage:
     keepAfterDelete: true   # operator finalizer must not delete PVCs with the CR; redis.sh clean --purge does that explicitly
     volumeClaimTemplate:

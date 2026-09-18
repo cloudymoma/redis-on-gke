@@ -55,15 +55,15 @@ make password   # auth password for the 'elastic'-equivalent: user 'default'
 
 `make all` does three things:
 
-1. **`gke`** — creates a regional GKE cluster (3 zones in `us-central1`,
-   `c4-standard-4`, Workload Identity enabled) via `bin/gke.sh create`.
+1. **`gke`** — creates a regional GKE cluster (3 zones in `us-central1`, 2
+   `c4-standard-4` nodes per zone, Workload Identity enabled) via `bin/gke.sh create`.
 2. **`operator`** — installs the redis-operator Helm chart into `ot-operators`.
 3. **`cluster`** — creates the `redis` namespace, generates a password Secret,
    and applies `templates/redis.cluster.yml`: **3 leaders (shards) + 3
    followers**, persistence on `redis-balanced-retain` PVCs (disks survive PVC
    deletion), redis-exporter
-   sidecars, PodDisruptionBudgets, and soft anti-affinity spreading pods
-   across zones and nodes.
+   sidecars, PodDisruptionBudgets, hard anti-affinity (one cluster pod per
+   node, so a leader never shares a node with its follower) and soft zone spread.
 
 Connect from inside the cluster (cluster-aware client required):
 
