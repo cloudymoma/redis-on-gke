@@ -75,6 +75,9 @@ func TestValidate(t *testing.T) {
 		{"zero server interval", func(c *Config) { c.Metrics.ServerInterval = 0 }, "metrics.server_interval"},
 		{"no percentiles", func(c *Config) { c.Metrics.Percentiles = nil }, "metrics.percentiles"},
 		{"percentile > 100", func(c *Config) { c.Metrics.Percentiles = []float64{101} }, "metrics.percentiles"},
+		// The report summary reads p50/p99/p99.9 by name; a list without them would
+		// silently report 0.00ms in the headline tiles and the final log line.
+		{"percentiles missing summary set", func(c *Config) { c.Metrics.Percentiles = []float64{90, 99} }, "metrics.percentiles"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
