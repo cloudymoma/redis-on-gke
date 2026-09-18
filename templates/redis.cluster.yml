@@ -91,4 +91,4 @@ spec:
         accessModes: ["ReadWriteOnce"]
         resources:
           requests:
-            storage: 4Gi   # Hyperdisk Balanced minimum volume size
+            storage: 10Gi  # >= pd-balanced (10 GiB) and hyperdisk-balanced (4 GiB) minimums
