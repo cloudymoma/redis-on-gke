@@ -74,4 +74,5 @@ spec:
                   mountPath: /backup
           volumes:
             - name: backup
-              emptyDir: {}
+              emptyDir:
+                sizeLimit: 20Gi   # every shard's RDB is staged here; fail the pod, not the node
