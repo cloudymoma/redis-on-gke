@@ -39,6 +39,8 @@ and failover.
       cloudbuild.googleapis.com artifactregistry.googleapis.com
   ```
 - GKE **1.35.3-gke.1290000 or later** (the dynamic StorageClass needs it).
+- redis-operator chart **0.26.1** (pinned via `OPERATOR_VERSION` in
+  `bin/operator.sh`; needs >= 0.21.0 for the config init-container gate).
   `bin/gke.sh create` uses the `rapid` release channel by default
   (`GKE_RELEASE_CHANNEL` to override) and fails if the created cluster is older.
 
@@ -207,7 +209,8 @@ in-product snapshot API Redis OSS doesn't have.
 - **Redis version**: bump the image tag in the template and re-apply — the
   operator rolls pods with failover, same workflow as editing `spec.version`
   in ECK. Don't downgrade.
-- **Operator**: `./bin/operator.sh upgrade` (may trigger rolling restarts).
+- **Operator**: bump `OPERATOR_VERSION` in `bin/operator.sh`, then
+  `./bin/operator.sh upgrade` (may trigger rolling restarts).
 
 ## Teardown
 
