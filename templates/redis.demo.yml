@@ -1,4 +1,5 @@
 # Standalone Redis — single pod, for dev/PoC only (no HA, no sharding).
+# Placeholders (__X__) are rendered by bin/redis.sh deploy.
 ---
 apiVersion: redis.redis.opstreelabs.in/v1beta2
 kind: Redis
@@ -19,7 +20,7 @@ spec:
         cpu: 500m
         memory: 1Gi
     redisSecret:
-      name: redis-secret
+      name: __SECRET_NAME__
       key: password
   redisExporter:
     enabled: true

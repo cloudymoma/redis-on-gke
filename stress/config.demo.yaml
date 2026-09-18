@@ -3,7 +3,7 @@
 # load generator and the server fit on the same node. See stress/README.md.
 target:
   mode: standalone
-  addrs: ["redis-standalone.redis.svc:6379"]
+  addrs: ["redis-standalone:6379"]
   password_env: REDIS_PASSWORD
   dial_timeout: 5s
   read_timeout: 2s

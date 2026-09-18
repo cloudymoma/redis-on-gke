@@ -29,7 +29,7 @@ reach every shard directly. For the demo topology:
 
     kubectl port-forward -n redis svc/redis-standalone 6379:6379 &
     export REDIS_PASSWORD="$(./bin/redis.sh password)"
-    sed 's|redis-standalone.redis.svc:6379|127.0.0.1:6379|' stress/config.demo.yaml > stress/local.yaml
+    sed 's|redis-standalone:6379|127.0.0.1:6379|' stress/config.demo.yaml > stress/local.yaml
     cd stress && go run ./cmd/redis-stress -config local.yaml -out ./out
 
 Expect lower numbers than in-cluster: every command crosses the port-forward.

@@ -39,7 +39,8 @@ deploy)
     }
     ensure_namespace
     ensure_secret
-    kubectl apply --namespace "${NAMESPACE}" -f "${template}"
+    sed -e "s/__SECRET_NAME__/${REDIS_SECRET_NAME}/g" "${template}" |
+        kubectl apply --namespace "${NAMESPACE}" -f -
     echo
     echo "Deployed '${topology}'. Watch progress with:"
     echo "  kubectl get pods -n ${NAMESPACE} -w"

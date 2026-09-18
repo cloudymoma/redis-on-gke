@@ -1,5 +1,6 @@
 # Redis Cluster mode (sharded): clusterSize leaders + clusterSize followers.
 # Scale shards with:  ./bin/redis.sh scale <n>   (the operator reshards slots)
+# Placeholders (__X__) are rendered by bin/redis.sh deploy.
 ---
 apiVersion: redis.redis.opstreelabs.in/v1beta2
 kind: RedisCluster
@@ -23,7 +24,7 @@ spec:
         cpu: "1"
         memory: 2Gi
     redisSecret:
-      name: redis-secret
+      name: __SECRET_NAME__
       key: password
   redisExporter:
     enabled: true
