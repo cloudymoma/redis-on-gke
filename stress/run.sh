@@ -48,6 +48,13 @@ run)
     mkdir -p "${dest}"
     cp "${config}" "${dest}/config.yaml"
 
+    # Tear down on every exit path (a failed kubectl cp used to leak the
+    # ConfigMap forever and the Job for its TTL).
+    cleanup() {
+        kubectl delete job "${job}" --namespace "${NAMESPACE}" --wait=false --ignore-not-found
+        kubectl delete configmap "${job}" --namespace "${NAMESPACE}" --ignore-not-found
+    }
+    trap cleanup EXIT
     kubectl create configmap "${job}" --namespace "${NAMESPACE}" --from-file=config.yaml="${config}"
     kubectl label configmap "${job}" --namespace "${NAMESPACE}" app=redis-stress
     sed -e "s|__JOB_NAME__|${job}|g" \
@@ -80,10 +87,8 @@ run)
 
     kubectl cp "${NAMESPACE}/${pod}:out/report.html" "${dest}/report.html"
     kubectl cp "${NAMESPACE}/${pod}:out/report.json" "${dest}/report.json"
-    kubectl delete job "${job}" --namespace "${NAMESPACE}" --wait=false
-    kubectl delete configmap "${job}" --namespace "${NAMESPACE}"
 
-    rc="$(grep -oE '^EXIT_CODE=[0-9]+' "${dest}/run.log" | tail -n 1 | cut -d= -f2)"
+    rc="$(grep -oE '^EXIT_CODE=[0-9]+' "${dest}/run.log" | tail -n 1 | cut -d= -f2 || true)"
     echo
     echo "Report: ${dest}/report.html (redis-stress exit code ${rc:-unknown})"
     [ "${rc:-1}" = "0" ] || exit 1
