@@ -9,6 +9,10 @@ HELM_REPO_NAME="ot-helm"
 HELM_REPO_URL="https://ot-container-kit.github.io/helm-charts/"
 CHART="ot-helm/redis-operator"
 RELEASE="redis-operator"
+# Pin the chart: >= 0.21.0 for featureGates.GenerateConfigInInitContainer
+# (silently ignored by older charts), >= 0.22.2 if additionalRedisConfig is
+# combined with maxMemoryPercentOfLimit. Bump deliberately and re-test.
+OPERATOR_VERSION="${OPERATOR_VERSION:-0.26.1}"
 
 usage() {
     echo "Usage: $0 {install|upgrade|status|uninstall}"
@@ -20,6 +24,7 @@ install | upgrade)
     helm repo add "${HELM_REPO_NAME}" "${HELM_REPO_URL}" --force-update
     helm repo update "${HELM_REPO_NAME}"
     helm upgrade --install "${RELEASE}" "${CHART}" \
+        --version "${OPERATOR_VERSION}" \
         --namespace "${OPERATOR_NAMESPACE}" \
         --create-namespace \
         --set featureGates.GenerateConfigInInitContainer=true \
