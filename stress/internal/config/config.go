@@ -7,10 +7,15 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"time"
 
 	"gopkg.in/yaml.v3"
 )
+
+// SummaryPercentiles are looked up by name (p50, p99, p99.9) for the report
+// summary; Validate requires them so the headline numbers are always measured.
+var SummaryPercentiles = []float64{50, 99, 99.9}
 
 const (
 	ModeCluster    = "cluster"
@@ -186,6 +191,11 @@ func (c Config) Validate() error {
 	for _, p := range m.Percentiles {
 		if p <= 0 || p > 100 {
 			return fmt.Errorf("metrics.percentiles: each value must be in (0, 100], got %v", p)
+		}
+	}
+	for _, want := range SummaryPercentiles {
+		if !slices.Contains(m.Percentiles, want) {
+			return fmt.Errorf("metrics.percentiles: must include %v (used by the report summary)", want)
 		}
 	}
 	return nil
