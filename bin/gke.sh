@@ -45,6 +45,7 @@ create)
         exit 1
     fi
     kubectl apply -f templates/storageclass.hyperdisk.yml
+    kubectl apply -f templates/storageclass.retain.yml
     ;;
 scale)
     [ -n "${2:-}" ] || usage

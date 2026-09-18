@@ -34,6 +34,7 @@ spec:
         cpu: 100m
         memory: 128Mi
   storage:
+    keepAfterDelete: true   # operator finalizer must not delete PVCs with the CR; redis.sh clean --purge does that explicitly
     volumeClaimTemplate:
       spec:
         storageClassName: hyperdisk-balanced  # Hyperdisk Balanced for C4

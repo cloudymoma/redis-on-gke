@@ -77,9 +77,10 @@ spec:
                   app: redis-cluster-follower
               topologyKey: kubernetes.io/hostname
   storage:
+    keepAfterDelete: true   # operator finalizer must not delete PVCs with the CR; redis.sh clean --purge does that explicitly
     volumeClaimTemplate:
       spec:
-        storageClassName: hyperdisk-balanced  # Hyperdisk Balanced for C4
+        storageClassName: redis-balanced-retain  # Hyperdisk Balanced for C4
         accessModes: ["ReadWriteOnce"]
         resources:
           requests:
@@ -87,7 +88,7 @@ spec:
     nodeConfVolume: true
     nodeConfVolumeClaimTemplate:
       spec:
-        storageClassName: hyperdisk-balanced  # cluster node.conf
+        storageClassName: redis-balanced-retain  # cluster node.conf
         accessModes: ["ReadWriteOnce"]
         resources:
           requests:

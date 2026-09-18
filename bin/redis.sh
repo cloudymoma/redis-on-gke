@@ -4,7 +4,7 @@
 #   scale <n>                        set cluster-mode shard count (leaders)
 #   status                           show CRs, pods, services, PVCs
 #   password                         print the generated redis password
-#   clean [--purge]                  delete CRs; --purge also removes PVCs and the secret
+#   clean [--purge]                  delete CRs, keeping PVCs; --purge also removes PVCs and the secret
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -79,7 +79,7 @@ password)
     echo
     ;;
 clean)
-    echo "Deleting Redis custom resources in namespace '${NAMESPACE}'"
+    echo "Deleting Redis custom resources in namespace '${NAMESPACE}' (PVCs are kept: storage.keepAfterDelete)"
     kubectl delete rediscluster,redissentinel,redisreplication,redis --all \
         --namespace "${NAMESPACE}" --ignore-not-found
     if [ "${2:-}" = "--purge" ]; then
