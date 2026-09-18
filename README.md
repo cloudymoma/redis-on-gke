@@ -23,7 +23,8 @@ and failover.
     ├── redis.sentinel.yml # HA without sharding (replication + sentinel)
     ├── redis.demo.yml     # single standalone node (dev/PoC)
     ├── backup.cronjob.yml # nightly per-shard RDB → GCS
-    └── storageclass.hyperdisk.yml # dynamic class: Hyperdisk on C4, pd-balanced on E2
+    ├── storageclass.hyperdisk.yml # dynamic class: Hyperdisk on C4, pd-balanced on E2 (Delete; demo)
+    └── storageclass.retain.yml    # same selection with reclaimPolicy Retain (cluster, sentinel)
 ```
 
 ## Prerequisites
@@ -59,7 +60,8 @@ make password   # auth password for the 'elastic'-equivalent: user 'default'
 2. **`operator`** — installs the redis-operator Helm chart into `ot-operators`.
 3. **`cluster`** — creates the `redis` namespace, generates a password Secret,
    and applies `templates/redis.cluster.yml`: **3 leaders (shards) + 3
-   followers**, persistence on `hyperdisk-balanced` PVCs, redis-exporter
+   followers**, persistence on `redis-balanced-retain` PVCs (disks survive PVC
+   deletion), redis-exporter
    sidecars, PodDisruptionBudgets, and soft anti-affinity spreading pods
    across zones and nodes.
 
@@ -216,7 +218,10 @@ make clean                    # delete the whole GKE cluster
 ```
 
 Run `clean --purge` before `make clean`: deleting a cluster does not delete
-disks behind still-existing PVCs, and they keep billing as orphans.
+disks behind still-existing PVCs, and they keep billing as orphans. The cluster
+and sentinel topologies use the `redis-balanced-retain` class, so their disks
+also survive `--purge` as released PVs; delete those with `gcloud compute disks`
+once the data is no longer needed.
 
 ## Mapping to elastic-on-gke
 
