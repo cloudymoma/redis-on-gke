@@ -2,7 +2,7 @@
 # tuned for the cluster topology in this repo. See stress/README.md.
 target:
   mode: cluster                  # cluster | standalone | sentinel
-  addrs: ["redis-cluster-leader.redis.svc:6379"]
+  addrs: ["redis-cluster-leader:6379"]   # same namespace as the Job; no namespace suffix
   password_env: REDIS_PASSWORD   # injected from the redis-secret Secret by k8s/job.yaml
   tls: false
   dial_timeout: 5s

@@ -2,6 +2,7 @@
 # monitored by a 3-node Sentinel quorum. Use when the dataset fits on
 # one node and you want automatic failover without cluster-mode
 # client complexity.
+# Placeholders (__X__) are rendered by bin/redis.sh deploy.
 ---
 apiVersion: redis.redis.opstreelabs.in/v1beta2
 kind: RedisReplication
@@ -23,7 +24,7 @@ spec:
         cpu: "1"
         memory: 2Gi
     redisSecret:
-      name: redis-secret
+      name: __SECRET_NAME__
       key: password
   redisExporter:
     enabled: true
@@ -79,7 +80,7 @@ spec:
     redisReplicationName: redis-replication
     redisReplicationPassword:
       secretKeyRef:
-        name: redis-secret
+        name: __SECRET_NAME__
         key: password
   kubernetesConfig:
     image: quay.io/opstree/redis-sentinel:v7.0.15
