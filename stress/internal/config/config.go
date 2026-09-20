@@ -74,7 +74,7 @@ func Default() Config {
 	return Config{
 		Target: Target{
 			Mode:        ModeCluster,
-			Addrs:       []string{"redis-cluster-leader.redis.svc:6379"},
+			Addrs:       []string{"redis-cluster-leader:6379"},
 			PasswordEnv: "REDIS_PASSWORD",
 			DialTimeout: 5 * time.Second,
 			ReadTimeout: 2 * time.Second,
