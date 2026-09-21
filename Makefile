@@ -2,7 +2,7 @@
 # Default topology is cluster mode (sharded). See README.md.
 
 .PHONY: all gke operator cluster sentinel demo scale status password \
-        backup-setup backup-deploy backup-run clean-redis clean \
+        backup-setup backup-deploy backup-run clean-redis destroy-cluster clean \
         demo-all demo-gke
 
 # One-shot production: GKE cluster (regional C4) + operator + Redis Cluster
@@ -51,8 +51,11 @@ backup-run:
 clean-redis:
 	./bin/redis.sh clean
 
-clean:
+destroy-cluster:
 	./bin/gke.sh clean
+
+# Alias kept for README / elastic-on-gke symmetry; prefer destroy-cluster.
+clean: destroy-cluster
 
 # --- stress test (see stress/README.md) ---
 .PHONY: stress-build stress-run
