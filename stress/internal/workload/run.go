@@ -104,7 +104,7 @@ func execOne(ctx context.Context, c redis.Cmdable, op Op, key string, value []by
 	if op == OpGet {
 		return normalize(c.Get(ctx, key).Err())
 	}
-	return c.Set(ctx, key, value, ttl).Err()
+	return normalize(c.Set(ctx, key, value, ttl).Err())
 }
 
 func queue(ctx context.Context, pipe redis.Pipeliner, op Op, key string, value []byte, ttl time.Duration) {

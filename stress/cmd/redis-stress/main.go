@@ -128,6 +128,7 @@ func run(args []string, stderr io.Writer) int {
 	}
 	cancelRun()
 	<-workDone
+	collector.Flush(time.Now())
 	<-samplesDone
 	clientRes := collector.Result()
 	if clientRes.Start.IsZero() {

@@ -55,6 +55,10 @@ scale)
         echo "ERROR: Redis Cluster requires at least 3 leaders (shards)." >&2
         exit 1
     fi
+    if ! kubectl get rediscluster redis-cluster --namespace "${NAMESPACE}" >/dev/null 2>&1; then
+        echo "ERROR: RedisCluster 'redis-cluster' not found in namespace '${NAMESPACE}' (only the cluster topology supports shard scaling)." >&2
+        exit 1
+    fi
     kubectl patch rediscluster redis-cluster \
         --namespace "${NAMESPACE}" \
         --type merge \

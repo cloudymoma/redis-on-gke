@@ -127,8 +127,11 @@ func sample(ctx context.Context, c redis.Cmdable, addr string) Sample {
 		return s
 	}
 	s.Fields = ParseInfo(info)
-	if n, err := c.DBSize(ctx).Result(); err == nil {
-		s.Fields.Keys = n
+	n, err := c.DBSize(ctx).Result()
+	if err != nil {
+		s.Err = err.Error()
+		return s
 	}
+	s.Fields.Keys = n
 	return s
 }

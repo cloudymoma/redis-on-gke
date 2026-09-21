@@ -165,3 +165,18 @@ func TestTickIgnoresDegenerateInterval(t *testing.T) {
 		t.Fatalf("op recorded before the skipped tick was lost")
 	}
 }
+
+func TestFlushBypassesDebounceForTrailingOps(t *testing.T) {
+	c := newTestCollector(1)
+	t0 := time.Now()
+	c.Enable(t0)
+	c.Recorder(0).Record(workload.OpGet, time.Millisecond, nil)
+	c.Tick(t0.Add(time.Second))
+	// Worker records one more op 5ms after the tick (< Interval/10 debounce).
+	c.Recorder(0).Record(workload.OpSet, 2*time.Millisecond, nil)
+	c.Flush(t0.Add(1005 * time.Millisecond))
+	res := c.Result()
+	if res.TotalOps[workload.OpSet] != 1 {
+		t.Fatalf("Flush dropped trailing op: %+v", res.TotalOps)
+	}
+}

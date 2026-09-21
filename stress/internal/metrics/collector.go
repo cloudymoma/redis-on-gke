@@ -183,16 +183,28 @@ func (c *Collector) discard() {
 // Tick merges all workers into one snapshot. Returns true exactly once when
 // the early-abort condition is met.
 func (c *Collector) Tick(now time.Time) bool {
+	return c.tick(now, false)
+}
+
+// Flush waits for the background ticker (if running) and drains any
+// observations recorded after the last tick, bypassing the interval debounce.
+func (c *Collector) Flush(now time.Time) {
+	c.wg.Wait()
+	c.tick(now, true)
+}
+
+func (c *Collector) tick(now time.Time, final bool) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if !c.enabled {
 		c.discard()
 		return false
 	}
+	short := now.Sub(c.lastTick) < c.cfg.Interval/10
 	// A ticker started before Enable can fire almost immediately after it;
 	// let that data roll into the next full interval instead of emitting a
 	// near-empty snapshot with a meaningless rate.
-	if now.Sub(c.lastTick) < c.cfg.Interval/10 {
+	if !final && short {
 		return false
 	}
 	interval := map[workload.Op]*hdrhistogram.Histogram{workload.OpGet: newHist(), workload.OpSet: newHist()}
@@ -201,6 +213,17 @@ func (c *Collector) Tick(now time.Time) bool {
 	for _, w := range c.workers {
 		w.drainInto(interval, ops, errs)
 	}
+	var totalOps, totalErrs int64
+	for _, n := range ops {
+		totalOps += n
+	}
+	for _, n := range errs {
+		totalErrs += n
+	}
+	if final && short && totalOps == 0 && totalErrs == 0 {
+		return false
+	}
+
 	all := newHist()
 	snap := Snapshot{
 		At:      now,
@@ -219,14 +242,11 @@ func (c *Collector) Tick(now time.Time) bool {
 	snap.Latency[OpAll] = percentilesOf(all, c.cfg.Percentiles)
 	c.cumulativeAll.Merge(all)
 
-	var totalOps, totalErrs int64
 	for op, n := range ops {
 		c.totalOps[op] += n
-		totalOps += n
 	}
 	for k, n := range errs {
 		c.totalErrs[k] += n
-		totalErrs += n
 	}
 	c.snapshots = append(c.snapshots, snap)
 
@@ -257,7 +277,7 @@ func (c *Collector) Start(ctx context.Context, onAbort func()) {
 					onAbort()
 				}
 			case <-ctx.Done():
-				c.Tick(time.Now())
+				c.tick(time.Now(), true)
 				return
 			}
 		}

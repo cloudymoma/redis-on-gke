@@ -26,6 +26,7 @@ build)
         gcloud artifacts repositories create "${AR_REPO}" \
             --project "${PROJECT_ID}" --location "${REGION}" --repository-format docker
     tag="$(git rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M%S)"
+    git diff --quiet HEAD 2>/dev/null || tag="${tag}-dirty-$(date +%H%M%S)"
     image="${host}/${PROJECT_ID}/${AR_REPO}/redis-stress:${tag}"
     gcloud builds submit stress --project "${PROJECT_ID}" --tag "${image}"
     echo "${image}" >"${IMAGE_FILE}"

@@ -68,7 +68,7 @@ spec:
                   memory: 512Mi
               command: ["/bin/sh", "-c"]
               args:
-                - gcloud storage cp /backup/*.rdb "gs://__GCS_BUCKET__/$(date +%Y-%m-%d_%H%M)/"
+                - gcloud storage cp /backup/*.rdb "gs://__GCS_BUCKET__/$$(date +%Y-%m-%d_%H%M)/"
               volumeMounts:
                 - name: backup
                   mountPath: /backup
