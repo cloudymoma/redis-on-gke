@@ -225,29 +225,50 @@ func (c *Collector) tick(now time.Time, final bool) bool {
 	}
 
 	all := newHist()
-	snap := Snapshot{
-		At:      now,
-		Elapsed: now.Sub(c.start).Seconds(),
-		Seconds: now.Sub(c.lastTick).Seconds(),
-		Ops:     ops,
-		Errors:  errs,
-		Latency: map[workload.Op]Percentiles{},
-	}
+	subSeconds := now.Sub(c.lastTick).Seconds()
 	c.lastTick = now
 	for op, h := range interval {
-		snap.Latency[op] = percentilesOf(h, c.cfg.Percentiles)
 		c.cumulative[op].Merge(h)
 		all.Merge(h)
 	}
-	snap.Latency[OpAll] = percentilesOf(all, c.cfg.Percentiles)
 	c.cumulativeAll.Merge(all)
-
 	for op, n := range ops {
 		c.totalOps[op] += n
 	}
 	for k, n := range errs {
 		c.totalErrs[k] += n
 	}
+
+	// If a final flush lands inside the debounce window after at least one
+	// snapshot already exists, fold its counts and duration into that last
+	// snapshot rather than emitting a few-millisecond tail bar with a noisy rate
+	// (its Latency percentiles remain from the full interval; cumulative includes all).
+	if final && short && len(c.snapshots) > 0 {
+		last := &c.snapshots[len(c.snapshots)-1]
+		last.At = now
+		last.Elapsed = now.Sub(c.start).Seconds()
+		last.Seconds += subSeconds
+		for op, n := range ops {
+			last.Ops[op] += n
+		}
+		for k, n := range errs {
+			last.Errors[k] += n
+		}
+		return false
+	}
+
+	snap := Snapshot{
+		At:      now,
+		Elapsed: now.Sub(c.start).Seconds(),
+		Seconds: subSeconds,
+		Ops:     ops,
+		Errors:  errs,
+		Latency: map[workload.Op]Percentiles{},
+	}
+	for op, h := range interval {
+		snap.Latency[op] = percentilesOf(h, c.cfg.Percentiles)
+	}
+	snap.Latency[OpAll] = percentilesOf(all, c.cfg.Percentiles)
 	c.snapshots = append(c.snapshots, snap)
 
 	if totalOps == 0 && totalErrs > 0 {

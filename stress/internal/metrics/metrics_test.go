@@ -179,4 +179,7 @@ func TestFlushBypassesDebounceForTrailingOps(t *testing.T) {
 	if res.TotalOps[workload.OpSet] != 1 {
 		t.Fatalf("Flush dropped trailing op: %+v", res.TotalOps)
 	}
+	if len(res.Snapshots) != 1 || res.Snapshots[0].Ops[workload.OpSet] != 1 {
+		t.Fatalf("expected short Flush to fold into the last snapshot, got %d snapshots: %+v", len(res.Snapshots), res.Snapshots)
+	}
 }
