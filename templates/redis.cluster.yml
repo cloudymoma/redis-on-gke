@@ -50,6 +50,10 @@ spec:
         cpu: 100m
         memory: 128Mi
   redisLeader:
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
     pdb:
       enabled: true
       maxUnavailable: 1
@@ -75,6 +79,10 @@ spec:
                   app: redis-cluster-leader
               topologyKey: topology.kubernetes.io/zone
   redisFollower:
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
     pdb:
       enabled: true
       maxUnavailable: 1

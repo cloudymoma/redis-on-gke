@@ -111,8 +111,9 @@ func Build(meta Meta, cfg config.Config, client metrics.ClientResult, samples []
 		}
 	}
 
-	// Keyspace deltas use the first and last *successful* sample per node;
-	// a failed sample carries zero-valued Fields.
+	// Keyspace deltas use the first and last *successful* sample per node
+	// (a sample where INFO failed has zero-valued Fields, and one where
+	// DBSIZE failed also carries Err and is skipped to match the charts).
 	var hits, misses int64
 	for _, n := range r.Server {
 		var first, last *sampler.ServerFields
