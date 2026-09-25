@@ -6,6 +6,7 @@ external assets) and a `report.json` twin.
 
 ## Quick start (in-cluster)
 
+    make stress-pool           # once: dedicated load-generator node (prod profile)
     make stress-build          # Cloud Build → Artifact Registry, writes stress/.image
     make stress-run            # cluster topology: uses stress/config.yaml
     make stress-run CONFIG=stress/config.demo.yaml   # demo topology (standalone)
@@ -15,6 +16,15 @@ external assets) and a `report.json` twin.
 (preflight failed) against the demo deployment; `config.demo.yaml` targets
 `redis-standalone` with a load sized for the single E2 node. `build` needs the
 Cloud Build and Artifact Registry APIs enabled.
+
+The Job runs on the `redis-stress` node pool (`./bin/gke.sh stress-pool
+create`): one node in `${ZONE}` with the taint `dedicated=redis-stress:NoSchedule`,
+so the load generator never competes with a Redis pod for CPU and Redis pods
+never land there. `run` refuses to start on the prod profile without it; the
+single-node demo cluster falls back to sharing its node. The pool is a single
+zone, so traffic to shards in the other two zones includes cross-zone RTT, as
+it would for a real zonal client. Delete it when done:
+`./bin/gke.sh stress-pool delete`.
 
 `run.sh run` creates a ConfigMap from the config, launches a Job in the
 `redis` namespace with the password injected from `redis-secret`, streams

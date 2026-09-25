@@ -43,6 +43,19 @@ run)
         echo "ERROR: no image. Run '$0 build' first or export IMAGE=<ref>" >&2
         exit 1
     }
+    # Placement: the Job pins itself to the dedicated stress node. Only the
+    # single-node demo cluster may run without it (sharing the Redis node).
+    if [ -n "$(kubectl get nodes -l "cloud.google.com/gke-nodepool=${STRESS_POOL}" -o name)" ]; then
+        placement_sed='/# stress-pool:/d'
+    elif [ "${PROFILE}" = "demo" ]; then
+        echo "NOTE: no '${STRESS_POOL}' node pool; the load generator shares the node with Redis."
+        placement_sed='/# stress-pool:begin/,/# stress-pool:end/d'
+    else
+        echo "ERROR: no '${STRESS_POOL}' node pool. The load generator would share CPU with a Redis pod." >&2
+        echo "Create it first: ./bin/gke.sh stress-pool create" >&2
+        exit 1
+    fi
+
     ts="$(date +%Y%m%d-%H%M%S)"
     job="redis-stress-${ts}"
     dest="stress/reports/${ts}"
@@ -51,14 +64,20 @@ run)
 
     # Tear down on every exit path (a failed kubectl cp used to leak the
     # ConfigMap forever and the Job for its TTL).
+    logs_pid=""
+    tail_pid=""
     cleanup() {
+        # shellcheck disable=SC2086 # empty pids must vanish, not become ""
+        kill ${logs_pid} ${tail_pid} 2>/dev/null || true
         kubectl delete job "${job}" --namespace "${NAMESPACE}" --wait=false --ignore-not-found
         kubectl delete configmap "${job}" --namespace "${NAMESPACE}" --ignore-not-found
     }
     trap cleanup EXIT
     kubectl create configmap "${job}" --namespace "${NAMESPACE}" --from-file=config.yaml="${config}"
     kubectl label configmap "${job}" --namespace "${NAMESPACE}" app=redis-stress
-    sed -e "s|__JOB_NAME__|${job}|g" \
+    sed -e "${placement_sed}" \
+        -e "s|__STRESS_POOL__|${STRESS_POOL}|g" \
+        -e "s|__JOB_NAME__|${job}|g" \
         -e "s|__NAMESPACE__|${NAMESPACE}|g" \
         -e "s|__IMAGE__|${image}|g" \
         -e "s|__HOLD__|${HOLD_SECONDS}|g" \
@@ -82,9 +101,25 @@ run)
     kubectl wait pod/"${pod}" --namespace "${NAMESPACE}" --for=condition=Ready --timeout=600s
 
     echo "Streaming logs until the report is ready..."
-    set +o pipefail
-    kubectl logs -f --namespace "${NAMESPACE}" "${pod}" | tee "${dest}/run.log" | sed '/^REPORT_READY$/q'
-    set -o pipefail
+    # Stream to the file in the background and poll it. A `logs -f | sed q`
+    # pipeline blocks until the container exits after its hold sleep, and by
+    # then kubectl cp can no longer exec into the completed pod.
+    kubectl logs -f --namespace "${NAMESPACE}" "${pod}" >"${dest}/run.log" &
+    logs_pid=$!
+    tail -n +1 -f "${dest}/run.log" &
+    tail_pid=$!
+    while ! grep -qx 'REPORT_READY' "${dest}/run.log" && kill -0 "${logs_pid}" 2>/dev/null; do
+        sleep 2
+    done
+    sleep 1 # let tail print the last lines
+    kill "${logs_pid}" "${tail_pid}" 2>/dev/null || true
+    wait "${logs_pid}" "${tail_pid}" 2>/dev/null || true
+    logs_pid=""
+    tail_pid=""
+    grep -qx 'REPORT_READY' "${dest}/run.log" || {
+        echo "ERROR: log stream ended before REPORT_READY; see ${dest}/run.log" >&2
+        exit 1
+    }
 
     kubectl cp "${NAMESPACE}/${pod}:out/report.html" "${dest}/report.html"
     kubectl cp "${NAMESPACE}/${pod}:out/report.json" "${dest}/report.json"

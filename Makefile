@@ -58,7 +58,11 @@ destroy-cluster:
 clean: destroy-cluster
 
 # --- stress test (see stress/README.md) ---
-.PHONY: stress-build stress-run
+.PHONY: stress-pool stress-build stress-run
+# Dedicated tainted node for the load generator (required on the prod profile)
+stress-pool:
+	./bin/gke.sh stress-pool create
+
 stress-build:
 	./stress/run.sh build
 

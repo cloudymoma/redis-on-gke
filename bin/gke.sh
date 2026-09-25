@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# GKE cluster lifecycle: create | scale <num-nodes-per-zone> | status | clean
+# GKE cluster lifecycle: create | scale <num-nodes-per-zone> | stress-pool <create|delete> | status | clean
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -9,7 +9,7 @@ source bin/config.sh
 MIN_GKE_VERSION="1.35.3-gke.1290000"
 
 usage() {
-    echo "Usage: $0 {create [demo]|scale <num-nodes>|status|clean}"
+    echo "Usage: $0 {create [demo]|scale <num-nodes>|stress-pool <create|delete>|status|clean}"
     echo "  'create demo' is shorthand for PROFILE=demo; export PROFILE=demo for"
     echo "  scale/status/clean against the demo cluster."
     exit 1
@@ -49,11 +49,41 @@ create)
     ;;
 scale)
     [ -n "${2:-}" ] || usage
+    # --node-pool is required once the stress pool exists; only Redis nodes scale.
     gcloud container clusters resize "${CLUSTER_NAME}" \
         --project "${PROJECT_ID}" \
         ${LOCATION_FLAG} \
+        --node-pool "${REDIS_POOL}" \
         --num-nodes "$2" \
         --quiet
+    ;;
+stress-pool)
+    case "${2:-}" in
+    create)
+        echo "Creating node pool '${STRESS_POOL}': 1 x ${STRESS_MACHINE_TYPE} in ${ZONE}, taint ${STRESS_TAINT}..."
+        # --node-locations pins one node total; without it a regional
+        # cluster would get --num-nodes per zone.
+        gcloud container node-pools create "${STRESS_POOL}" \
+            --project "${PROJECT_ID}" \
+            --cluster "${CLUSTER_NAME}" \
+            ${LOCATION_FLAG} \
+            --node-locations "${ZONE}" \
+            --num-nodes 1 \
+            --machine-type "${STRESS_MACHINE_TYPE}" \
+            --disk-type "${DISK_TYPE}" \
+            --disk-size 50 \
+            --node-taints "${STRESS_TAINT}"
+        ;;
+    delete)
+        gcloud container node-pools delete "${STRESS_POOL}" \
+            --project "${PROJECT_ID}" \
+            --cluster "${CLUSTER_NAME}" \
+            ${LOCATION_FLAG}
+        ;;
+    *)
+        usage
+        ;;
+    esac
     ;;
 status)
     gcloud container clusters describe "${CLUSTER_NAME}" \

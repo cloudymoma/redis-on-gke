@@ -36,6 +36,14 @@ else
     NUM_NODES="${NUM_NODES:-2}" # per zone (regional = 3 zones, 6 nodes total): one node per cluster pod, see redis.cluster.yml anti-affinity
 fi
 
+# Node pools. gke.sh create makes REDIS_POOL; gke.sh stress-pool create adds a
+# single tainted node in ${ZONE} so the stress/ load generator never shares
+# CPU with a Redis pod (and Redis pods never land on it).
+REDIS_POOL="default-pool"
+STRESS_POOL="${STRESS_POOL:-redis-stress}"
+STRESS_MACHINE_TYPE="${STRESS_MACHINE_TYPE:-${MACHINE_TYPE}}" # same family, so DISK_TYPE fits
+STRESS_TAINT="dedicated=redis-stress:NoSchedule"               # tolerated by stress/k8s/job.yaml
+
 # GKE release channel. The dynamic StorageClass (templates/storageclass.hyperdisk.yml)
 # needs GKE >= 1.35.3-gke.1290000; bin/gke.sh create verifies this after creation.
 GKE_RELEASE_CHANNEL="${GKE_RELEASE_CHANNEL:-rapid}"
