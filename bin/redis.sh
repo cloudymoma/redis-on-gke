@@ -29,6 +29,23 @@ ensure_secret() {
     fi
 }
 
+# Fail before applying when hard pod anti-affinity (one pod per node) cannot be
+# satisfied: the surplus pods would sit Pending and the operator would stall.
+require_nodes() {
+    local need="$1" what="$2" have hint
+    have="$(kubectl get nodes -l "cloud.google.com/gke-nodepool=${REDIS_POOL}" -o name | wc -l)"
+    if [ "${have}" -lt "${need}" ]; then
+        if [ "${PROFILE}" = "demo" ]; then
+            hint="./bin/gke.sh scale ${need}"
+        else
+            hint="./bin/gke.sh scale $(((need + 2) / 3))   # nodes per zone, x3 zones"
+        fi
+        echo "ERROR: ${what} needs ${need} nodes in pool '${REDIS_POOL}' (one pod per node), found ${have}." >&2
+        echo "Add nodes first: ${hint}" >&2
+        exit 1
+    fi
+}
+
 case "${1:-}" in
 deploy)
     topology="${2:-}"
@@ -37,6 +54,12 @@ deploy)
         echo "Unknown topology '${topology}'." >&2
         usage
     }
+    # Last clusterSize in the file: RedisCluster's shard count, or RedisSentinel's size.
+    size="$(awk '/^  clusterSize:/ {n = $2} END {print n}' "${template}")"
+    case "${topology}" in
+    cluster) require_nodes "$((2 * size))" "cluster with ${size} shards (leader + follower each)" ;;
+    sentinel) require_nodes "${size}" "${size} sentinels" ;;
+    esac
     ensure_namespace
     ensure_secret
     sed -e "s/__SECRET_NAME__/${REDIS_SECRET_NAME}/g" "${template}" |
@@ -59,6 +82,7 @@ scale)
         echo "ERROR: RedisCluster 'redis-cluster' not found in namespace '${NAMESPACE}' (only the cluster topology supports shard scaling)." >&2
         exit 1
     fi
+    require_nodes "$((2 * $2))" "cluster with $2 shards (leader + follower each)"
     kubectl patch rediscluster redis-cluster \
         --namespace "${NAMESPACE}" \
         --type merge \

@@ -14,7 +14,7 @@ and failover.
 ├── Makefile               # topology targets (cluster is the default)
 ├── bin/
 │   ├── config.sh          # shared config — set PROJECT_ID/REGION here or via env
-│   ├── gke.sh             # GKE cluster: create | scale <n> | status | clean
+│   ├── gke.sh             # GKE cluster: create | scale <n> | stress-pool | status | clean
 │   ├── operator.sh        # redis-operator: install | upgrade | status | uninstall
 │   ├── redis.sh           # workloads: deploy | scale | status | password | clean
 │   └── backup.sh          # GCS backups: setup | deploy | run | status
@@ -148,7 +148,10 @@ make scale N=5        # or: ./bin/redis.sh scale 5
 
 This patches `spec.clusterSize`; the operator adds leader/follower pairs and
 **reshards the 16384 hash slots** onto new shards. Scale-in migrates slots off
-removed shards first. If the backup CronJob is deployed, `scale` re-renders
+removed shards first. Hard anti-affinity puts every cluster pod on its own
+node, so N shards need 2×N nodes in `default-pool`: add nodes first
+(`./bin/gke.sh scale 4` = 12 nodes for N=5 or 6). `scale` and `deploy` refuse
+to run when the nodes are not there. If the backup CronJob is deployed, `scale` re-renders
 it automatically so new shards are included in the next backup. Never scale the underlying StatefulSets directly —
 that's the equivalent of editing `nodeSets.count` by hand behind ECK's back.
 Minimum is 3 shards (quorum floor).
@@ -156,8 +159,11 @@ Minimum is 3 shards (quorum floor).
 ### GKE nodes
 
 ```bash
-./bin/gke.sh scale 2   # nodes per zone (regional cluster ⇒ ×3 total)
+./bin/gke.sh scale 4   # nodes per zone in default-pool (regional cluster ⇒ ×3 total)
 ```
+
+Only `default-pool` (the Redis nodes) is resized; the stress pool below is
+left alone.
 
 Keep the cluster autoscaler off the Redis node pool, or rely on the PDBs
 (`maxUnavailable: 1`) in the manifest to stop evictions taking out a leader
