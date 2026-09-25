@@ -28,12 +28,15 @@ spec:
   kubernetesConfig:
     image: quay.io/opstree/redis:v7.0.15
     imagePullPolicy: IfNotPresent
+    # CPU: request a full core for the single-threaded event loop and allow
+    # bursting to 2 so BGSAVE/AOF forks and background threads do not push
+    # the main thread into CFS throttling (a latency-spike source).
     resources:
       requests:
-        cpu: 500m
+        cpu: "1"
         memory: 1Gi
       limits:
-        cpu: "1"
+        cpu: "2"
         memory: 2Gi
     redisSecret:
       name: __SECRET_NAME__
