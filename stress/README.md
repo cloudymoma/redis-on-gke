@@ -32,10 +32,20 @@ logs, copies the report to `stress/reports/<timestamp>/` and deletes the Job.
 The pod holds for `HOLD_SECONDS` (default 600) after writing so the copy can
 happen.
 
-## Local use (standalone/sentinel only)
+## Sentinel topology (in-cluster)
 
-Cluster mode cannot be tested through a port-forward because clients must
-reach every shard directly. For the demo topology:
+There is no bundled config; copy `config.yaml` and change the target:
+
+    target:
+      mode: sentinel
+      addrs: ["redis-sentinel-sentinel:26379"]   # confirm: kubectl get svc -n redis
+      sentinel_master: myMaster                  # operator default masterGroupName
+
+## Local use (standalone only)
+
+Cluster and sentinel modes cannot be tested through a port-forward: cluster
+clients must reach every shard directly, and sentinel hands out the master's
+pod IP, which is unreachable from outside the cluster. For the demo topology:
 
     kubectl port-forward -n redis svc/redis-standalone 6379:6379 &
     export REDIS_PASSWORD="$(./bin/redis.sh password)"
