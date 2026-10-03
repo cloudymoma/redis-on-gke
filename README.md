@@ -172,7 +172,8 @@ and its follower together.
 ### Vertical
 
 Edit resources/storage in `templates/redis.cluster.yml` and re-apply with
-`./bin/redis.sh deploy cluster`. The operator performs a rolling restart,
+`./bin/redis.sh deploy cluster` (it keeps the live shard count, so a previous
+`scale` is not undone). The operator performs a rolling restart,
 replicas first. Note: PVC size can only grow; `storageclass.hyperdisk.yml`
 sets `allowVolumeExpansion: true`.
 

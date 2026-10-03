@@ -56,13 +56,26 @@ deploy)
     }
     # Last clusterSize in the file: RedisCluster's shard count, or RedisSentinel's size.
     size="$(awk '/^  clusterSize:/ {n = $2} END {print n}' "${template}")"
+    # Re-applying the template must not undo `scale`: kubectl apply would
+    # reset a live clusterSize of 5 to the template's 3 and the operator
+    # would drain and delete the extra shards. Keep the live value.
+    size_sed="s/^$//" # no-op unless overridden below
+    if [ "${topology}" = "cluster" ]; then
+        live_size="$(kubectl get rediscluster redis-cluster --namespace "${NAMESPACE}" \
+            --ignore-not-found -o jsonpath='{.spec.clusterSize}')"
+        if [ -n "${live_size}" ] && [ "${live_size}" != "${size}" ]; then
+            echo "Keeping live clusterSize ${live_size} (template: ${size}); change shards with: $0 scale <n>"
+            size="${live_size}"
+            size_sed="s/^  clusterSize: [0-9]*/  clusterSize: ${size}/"
+        fi
+    fi
     case "${topology}" in
     cluster) require_nodes "$((2 * size))" "cluster with ${size} shards (leader + follower each)" ;;
     sentinel) require_nodes "${size}" "${size} sentinels" ;;
     esac
     ensure_namespace
     ensure_secret
-    sed -e "s/__SECRET_NAME__/${REDIS_SECRET_NAME}/g" "${template}" |
+    sed -e "${size_sed}" -e "s/__SECRET_NAME__/${REDIS_SECRET_NAME}/g" "${template}" |
         kubectl apply --namespace "${NAMESPACE}" -f -
     echo
     echo "Deployed '${topology}'. Watch progress with:"
