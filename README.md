@@ -165,9 +165,11 @@ Minimum is 3 shards (quorum floor).
 Only `default-pool` (the Redis nodes) is resized; the stress pool below is
 left alone.
 
-Keep the cluster autoscaler off the Redis node pool, or rely on the PDBs
-(`maxUnavailable: 1`) in the manifest to stop evictions taking out a leader
-and its follower together.
+Keep the cluster autoscaler off the Redis node pool and drain nodes one at a
+time. The PDBs (`maxUnavailable: 1`) are per role, one for leaders and one for
+followers: each caps its role at one evicted pod, but together they still
+allow leader-i and follower-i to be evicted at once if two nodes drain
+concurrently, which takes shard i offline.
 
 ### Vertical
 
