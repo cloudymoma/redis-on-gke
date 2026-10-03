@@ -45,7 +45,10 @@ run)
     }
     # Placement: the Job pins itself to the dedicated stress node. Only the
     # single-node demo cluster may run without it (sharing the Redis node).
-    if [ -n "$(kubectl get nodes -l "cloud.google.com/gke-nodepool=${STRESS_POOL}" -o name)" ]; then
+    # Plain assignment so set -e aborts on a kubectl failure instead of
+    # misreporting a missing pool.
+    stress_nodes="$(kubectl get nodes -l "cloud.google.com/gke-nodepool=${STRESS_POOL}" -o name)"
+    if [ -n "${stress_nodes}" ]; then
         placement_sed='/# stress-pool:/d'
     elif [ "${PROFILE}" = "demo" ]; then
         echo "NOTE: no '${STRESS_POOL}' node pool; the load generator shares the node with Redis."
@@ -103,7 +106,10 @@ run)
     echo "Streaming logs until the report is ready..."
     # Stream to the file in the background and poll it. A `logs -f | sed q`
     # pipeline blocks until the container exits after its hold sleep, and by
-    # then kubectl cp can no longer exec into the completed pod.
+    # then kubectl cp can no longer exec into the completed pod. Create the file
+    # here: the background redirection opens it in the child, which can lose
+    # the race with tail -f (exits on a missing file) and grep.
+    : >"${dest}/run.log"
     kubectl logs -f --namespace "${NAMESPACE}" "${pod}" >"${dest}/run.log" &
     logs_pid=$!
     tail -n +1 -f "${dest}/run.log" &
