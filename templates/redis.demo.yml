@@ -53,7 +53,7 @@ spec:
     keepAfterDelete: true   # operator finalizer must not delete PVCs with the CR; redis.sh clean --purge does that explicitly
     volumeClaimTemplate:
       spec:
-        storageClassName: hyperdisk-balanced  # Hyperdisk Balanced for C4
+        storageClassName: hyperdisk-balanced  # dynamic class: pd-balanced on the demo's E2 node
         accessModes: ["ReadWriteOnce"]
         resources:
           requests:

@@ -23,9 +23,19 @@ spec:
         spec:
           serviceAccountName: __KSA_NAME__
           restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
           initContainers:
             - name: dump
               image: redis:7.2-alpine
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
               resources:
                 requests:
                   cpu: 100m
@@ -59,6 +69,10 @@ spec:
           containers:
             - name: upload
               image: gcr.io/google.com/cloudsdktool/google-cloud-cli:slim
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
               resources:
                 requests:
                   cpu: 100m
@@ -66,6 +80,11 @@ spec:
                 limits:
                   cpu: 500m
                   memory: 512Mi
+              env:
+                # google-cloud-cli:slim has uid 1000 (cloudsdk, /home/cloudsdk),
+                # and pointing CLOUDSDK_CONFIG at /tmp avoids depending on $HOME.
+                - name: CLOUDSDK_CONFIG
+                  value: /tmp/gcloud
               command: ["/bin/sh", "-c"]
               args:
                 - gcloud storage cp /backup/*.rdb "gs://__GCS_BUCKET__/$$(date +%Y-%m-%d_%H%M)/"

@@ -20,6 +20,8 @@ spec:
         runAsNonRoot: true
         runAsUser: 1000
         fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       # stress-pool:begin  run.sh drops this block only for a demo cluster without the pool.
       # Run on the dedicated node from `bin/gke.sh stress-pool create` so the
       # load generator never competes with a Redis pod for CPU.
