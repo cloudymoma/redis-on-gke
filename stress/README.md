@@ -38,7 +38,7 @@ There is no bundled config; copy `config.yaml` and change the target:
 
     target:
       mode: sentinel
-      addrs: ["redis-sentinel-sentinel:26379"]   # confirm: kubectl get svc -n redis
+      addrs: ["redis-sentinel-sentinel:26379"]   # operator Service: <RedisSentinel.name>-sentinel
       sentinel_master: myMaster                  # operator default masterGroupName
 
 ## Local use (standalone only)
